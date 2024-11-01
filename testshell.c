@@ -17,6 +17,9 @@ int getcmd(char* buf, int nbuf){
 	memset(buf, 0, nbuf);
 	gets(buf, nbuf);
 
+	fprintf(2, "Chars: %d\n", strlen(buf));
+	fprintf(2, "Buf: %s\n", buf);
+
 	if (buf[0] == 0){
 		return -1;
 	}
@@ -30,12 +33,12 @@ void run_command(char* buf, int nbuf, int* pcp){
 	
 	// Useful data structures and flags
 	
-	char* arguments[10];
+	char* arguments[10] = {0}; // Initialize everything to NULL
 	int numargs = 0; // number of arguments
 
 	int ws = 1; // word start flag
 	int we = 0; // word end flag
-
+	
 	int redirection_left = 0; // <
 	int redirection_right = 0; // >
 	char* file_name_l = 0; // Buffer to store name of file on the left
@@ -87,21 +90,21 @@ void run_command(char* buf, int nbuf, int* pcp){
 			break; // Handling recursively
 		}
 		
-
+		// hello012304560
 		// If redirection is not present
 		if (!(redirection_left || redirection_right)){
 			
 			// Check for whitespaces, ' ', '\t' and '\n' AND CARRIAGE RETURN
 			if ((buf[i] == ' ' || buf[i] == '\t' || buf[i] == '\n' || buf[i] == 13)){
-				if (ws){ // If a whitespace is a start of a word, skip this iteration
-					continue;
-				}else{
-					buf[i] = 0; // null terminate
-					we = 1; // whitespace so word ended
-				}
+				if (ws) continue; // skip this iteration if it's a start of word is whitespace
+
+				buf[i] = 0; // null terminate
+				we = 1; // whitespace so word ended
+
 			}else if (ws && (we == 0)){ // At the start of a new word, and not and the end of a word
-				numargs++; // Increment number of arguments
-				arguments[numargs] = &buf[i]; // Save word string to arguments
+				if (strcmp(&buf[i], "") != 0){
+					arguments[numargs++] = &buf[i]; // Save word string to arguments
+				}
 				ws = 0; // reset flag
 
 			}
@@ -110,6 +113,7 @@ void run_command(char* buf, int nbuf, int* pcp){
 				we = 0; // no longer at the end of a word
 
 			}
+			arguments[numargs] = 0; // NULL Terminate to make it a valid pass to exec()
 
 		}else{ // Redirection is detected, capture filenames
 
@@ -120,29 +124,31 @@ void run_command(char* buf, int nbuf, int* pcp){
 				if (buf[i] != ' ' && buf[i] != '\t' && buf[i] != '\n' && buf[i] != 13){
 					file_name_l = &buf[i]; // capture string
 					//FIXME:
-					fprintf(2, "file_name_l: %s\n", file_name_l);
+					fprintf(2, "file_name_l: <S>%s<E>\n", file_name_l);
 				}
 			}
 
 			if (!file_name_r && redirection_right){
-				if (buf[i] == ' ' && buf[i] != '\t' && buf[i] != '\n' && buf[i] != 13){
+				if (buf[i] != ' ' && buf[i] != '\t' && buf[i] != '\n' && buf[i] != 13){
 					file_name_r = &buf[i];
 					// FIXME:
-					fprintf(2, "file_name_r: %s\n", file_name_r);
+					fprintf(2, "file_name_r: <S>%s<E>\n", file_name_r);
 				}
 			}
 		}
 	}
-
 	
+
 	// Dealing with sequence command ;
 	if (sequence_cmd){
-		sequence_cmd = 0; // Reset flag
 
 		// Parent Process
 		if (fork() != 0){
 			wait(0);
 			
+			fprintf(2, "Buf:<S>%s<E>\n",buf);
+			fprintf(2, "Buf Alt: <S>%s<E>\n", &buf[sequence_cmd]);
+
 			// Recursively call run_command to handle everything after ;
 			run_command(&buf[sequence_cmd], nbuf - sequence_cmd, pcp);
 		}
@@ -153,14 +159,14 @@ void run_command(char* buf, int nbuf, int* pcp){
 	if (redirection_left){
 		close(0); // close stdin
 		if (open(file_name_l, O_RDONLY) < 0){ // open our file with fd of 0
-			fprintf(2, "Failed to open file: %s", file_name_l);
+			fprintf(2, "Failed to open file: <S>%s<E>\n", file_name_l);
 			exit(1); // quit
 		}
 	}
 	if (redirection_right){
 		close(1); // close stdout
 		if (open(file_name_r, O_WRONLY|O_CREATE|O_TRUNC) < 0){ // open our file with fd of 1
-			fprintf(2, "Failed to open file: %s", file_name_r);
+			fprintf(2, "Failed to open file: <S>%s<E>\n", file_name_r);
 			exit(1); // quit
 		}
 	}
@@ -189,7 +195,7 @@ void run_command(char* buf, int nbuf, int* pcp){
 				exec(arguments[0], arguments); // Execute command on the left
 				
 				// If we reach this part that means something went wrong
-				fprintf(2, "Execution of the command failed\n");
+				fprintf(2, "P_LEFT: Execution of the command failed:<S>%s<E>", arguments[0]);
 				exit(1);
 			}
 			if (fork() == 0){ // Handle right side recursively
@@ -201,11 +207,16 @@ void run_command(char* buf, int nbuf, int* pcp){
 
 				run_command(&buf[pipe_cmd], nbuf - pipe_cmd, pcp);
 			}
+			wait(0);
+			wait(0);
 		}else{ // No pipes as well, just a plain command
 			exec(arguments[0], arguments);
 
 			// Something went wrong if this part is reached
-			fprintf(2, "Execution of the command failed\n"); 
+			fprintf(2, "DEFAULT:Execution of the command failed:<S>%s<E>\n", arguments[0]);
+			for(int j = 0; j < 9; j++){
+				fprintf(2, "Arg[%d] = <S>%s<E>, narg = %d\n",j , arguments[j], numargs);
+			}	
 		}
 	}
 	exit(0);
@@ -218,7 +229,7 @@ void run_command(char* buf, int nbuf, int* pcp){
 int main(void){
 	
 	static char buf[100];
-	
+
 	// Setup a pipe
 	int pcp[2];
 	pipe(pcp);
@@ -226,6 +237,7 @@ int main(void){
 	int fd;
 
 	// Make sure file descriptors are open
+	// Taken from source 1
 	while((fd = open("console", O_RDWR)) >= 0){
 		if(fd >= 3){
 			close(fd); // close 0, 1 and 2 and it will reopen itself
@@ -237,6 +249,7 @@ int main(void){
 	while(getcmd(buf, sizeof(buf)) >= 0){
 		
 		if (fork() == 0){
+			fprintf(2, "main_child: <S>%s<S>", buf);
 			run_command(buf, 100, pcp);
 		}
 		
@@ -248,7 +261,11 @@ int main(void){
 			char buffer_cd_arg[100];
 			// Read from pipe the pathname to cd
 			read(pcp[0], buffer_cd_arg, sizeof(buffer_cd_arg));
-			chdir(buffer_cd_arg); // use chdir system call	
+			
+			// Attempt to use chdir system call
+			if (chdir(buffer_cd_arg) < 0){
+				fprintf(2, "Failed to change directory\n");
+			}	
 		}
 	}
 	exit(0);
