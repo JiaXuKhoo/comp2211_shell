@@ -30,7 +30,7 @@ int getcmd(char* buf, int nbuf){
 
 __attribute__((noreturn))
 void run_command(char* buf, int nbuf, int* pcp){
-	
+
 	// Useful data structures and flags
 	
 	char* arguments[10] = {0}; // Initialize everything to NULL
@@ -58,7 +58,7 @@ void run_command(char* buf, int nbuf, int* pcp){
 
 			// FIXME:
 			fprintf(2, "REDIR_L FLAG SET\n");
-
+			
 			redirection_left = 1;
 			buf[i] = 0; // Null terminate a word
 			continue;
@@ -113,7 +113,6 @@ void run_command(char* buf, int nbuf, int* pcp){
 				we = 0; // no longer at the end of a word
 
 			}
-			arguments[numargs] = 0; // NULL Terminate to make it a valid pass to exec()
 
 		}else{ // Redirection is detected, capture filenames
 
@@ -122,7 +121,10 @@ void run_command(char* buf, int nbuf, int* pcp){
 			if (!file_name_l && redirection_left){ // if left redirection
 				// If it's a whitespace we process at next iteration, skipping whitespaces
 				if (buf[i] != ' ' && buf[i] != '\t' && buf[i] != '\n' && buf[i] != 13){
+					
 					file_name_l = &buf[i]; // capture string
+					file_name_l[strlen(file_name_l) - 1] = 0; // Remove trailing newline
+
 					//FIXME:
 					fprintf(2, "file_name_l: <S>%s<E>\n", file_name_l);
 				}
@@ -130,7 +132,10 @@ void run_command(char* buf, int nbuf, int* pcp){
 
 			if (!file_name_r && redirection_right){
 				if (buf[i] != ' ' && buf[i] != '\t' && buf[i] != '\n' && buf[i] != 13){
+					
 					file_name_r = &buf[i];
+					file_name_r[strlen(file_name_r) - 1] = 0; // Remove trailing newline
+
 					// FIXME:
 					fprintf(2, "file_name_r: <S>%s<E>\n", file_name_r);
 				}
@@ -138,6 +143,8 @@ void run_command(char* buf, int nbuf, int* pcp){
 		}
 	}
 	
+	
+	arguments[numargs] = 0; // NULL terminate for exec() to work
 
 	// Dealing with sequence command ;
 	if (sequence_cmd){
@@ -146,12 +153,15 @@ void run_command(char* buf, int nbuf, int* pcp){
 		if (fork() != 0){
 			wait(0);
 			
-			fprintf(2, "Buf:<S>%s<E>\n",buf);
-			fprintf(2, "Buf Alt: <S>%s<E>\n", &buf[sequence_cmd]);
+			fprintf(2, "Sequenced: <S>%s<E>\n", &buf[sequence_cmd]);
+
+			// EXAMPLE: {l, s, [], -a, [], ;, [], c, a, t, [], h, 0}
 
 			// Recursively call run_command to handle everything after ;
 			run_command(&buf[sequence_cmd], nbuf - sequence_cmd, pcp);
+			exit(0); // Exits even if run_command is not working
 		}
+		wait(0);
 	}
 
 	// Dealing with redirection command < and >
@@ -159,14 +169,14 @@ void run_command(char* buf, int nbuf, int* pcp){
 	if (redirection_left){
 		close(0); // close stdin
 		if (open(file_name_l, O_RDONLY) < 0){ // open our file with fd of 0
-			fprintf(2, "Failed to open file: <S>%s<E>\n", file_name_l);
+			fprintf(2, "\nFailed to open file: <S>%s<E>\n ", file_name_l);
 			exit(1); // quit
 		}
 	}
 	if (redirection_right){
 		close(1); // close stdout
 		if (open(file_name_r, O_WRONLY|O_CREATE|O_TRUNC) < 0){ // open our file with fd of 1
-			fprintf(2, "Failed to open file: <S>%s<E>\n", file_name_r);
+			fprintf(2, "\nFailed to open file: <S>%s<E>\n ", file_name_r);
 			exit(1); // quit
 		}
 	}
@@ -195,7 +205,13 @@ void run_command(char* buf, int nbuf, int* pcp){
 				exec(arguments[0], arguments); // Execute command on the left
 				
 				// If we reach this part that means something went wrong
-				fprintf(2, "P_LEFT: Execution of the command failed:<S>%s<E>", arguments[0]);
+				fprintf(2, "================================================\n");
+				fprintf(2, "P_LEFT: Execution of the command failed:<S>%s<E>\n", arguments[0]);
+				fprintf(2, "================================================\n");
+				for (int j = 0; j < 9; j++){
+					fprintf(2, "Arg[%d] = <S>%s<E>, narg = %d\n", j, arguments[j], numargs);
+				}
+
 				exit(1);
 			}
 			if (fork() == 0){ // Handle right side recursively
@@ -206,6 +222,7 @@ void run_command(char* buf, int nbuf, int* pcp){
 				close(p[0]);
 
 				run_command(&buf[pipe_cmd], nbuf - pipe_cmd, pcp);
+				exit(0);
 			}
 			wait(0);
 			wait(0);
@@ -213,7 +230,9 @@ void run_command(char* buf, int nbuf, int* pcp){
 			exec(arguments[0], arguments);
 
 			// Something went wrong if this part is reached
+			fprintf(2, "===============================================\n");
 			fprintf(2, "DEFAULT:Execution of the command failed:<S>%s<E>\n", arguments[0]);
+			fprintf(2, "===============================================\n");
 			for(int j = 0; j < 9; j++){
 				fprintf(2, "Arg[%d] = <S>%s<E>, narg = %d\n",j , arguments[j], numargs);
 			}	
