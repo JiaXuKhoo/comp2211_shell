@@ -7,9 +7,15 @@
 // Source 1: https://github.com/mit-pdos/xv6-riscv/blob/riscv/user/sh.c - xv6 by MIT
 // Source 2: xv6: a simple, Unix-like teaching operating system by Russ Cox, Frans Kaashoek and Robert Morris (31/08/2024)
 
+// PROBLEM: I have found a problem that is not only for my shell but also for the xv6 source code shell,
+// if, say out of habit i pressed the up-arrow key on the console and the down-arrow key again and type in a command like
+// ls, somehow I think those two arrow keys are being recorded thus breaking the code. However if we just let it spit out an error once,
+// everyhting will be back in order.
+
+
 // Purpose: Reading a line from user
 // Output: 0 for success, -1 for unsuccessful
-// Modified from source 1
+// CREDIT: Modified from source 1
 int getcmd(char* buf, int nbuf){
 	
 	write(2, ">>> ", 4);
@@ -112,7 +118,7 @@ void run_command(char* buf, int nbuf, int* pcp){
 				if (buf[i] != ' ' && buf[i] != '\t' && buf[i] != '\n' && buf[i] != 13){
 					
 					file_name_r = &buf[i];
-					file_name_r[strlen(file_name_r) - 1] = 0; // Remove trailing newline
+					file_name_r[strlen(file_name_r) - 1] = 0;
 				}
 			}
 		}
@@ -128,8 +134,6 @@ void run_command(char* buf, int nbuf, int* pcp){
 		if (fork() != 0){
 			wait(0);
 			
-			fprintf(2, "Sequenced: <S>%s<E>\n", &buf[sequence_cmd]);
-
 			// Recursively call run_command to handle everything after ;
 			run_command(&buf[sequence_cmd], nbuf - sequence_cmd, pcp);
 			exit(0); // Exits even if run_command is not working
@@ -224,7 +228,7 @@ int main(void){
 	int fd;
 
 	// Make sure file descriptors are open
-	// Taken from source 1
+	// CREDIT: Taken from source 1
 	while((fd = open("console", O_RDWR)) >= 0){
 		if(fd >= 3){
 			close(fd); // close 0, 1 and 2 and it will reopen itself
