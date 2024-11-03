@@ -10,15 +10,11 @@
 // Purpose: Reading a line from user
 // Output: 0 for success, -1 for unsuccessful
 // Modified from source 1
-
 int getcmd(char* buf, int nbuf){
 	
 	write(2, ">>> ", 4);
 	memset(buf, 0, nbuf);
 	gets(buf, nbuf);
-
-	fprintf(2, "Chars: %d\n", strlen(buf));
-	fprintf(2, "Buf: %s\n", buf);
 
 	if (buf[0] == 0){
 		return -1;
@@ -55,36 +51,21 @@ void run_command(char* buf, int nbuf, int* pcp){
 		// Sets flag and null terminate for a valid string
 		// Apparently \0 in integer is 0
 		if (buf[i] == '<'){
-
-			// FIXME:
-			fprintf(2, "REDIR_L FLAG SET\n");
-			
 			redirection_left = 1;
 			buf[i] = 0; // Null terminate a word
 			continue;
 		}
 		if (buf[i] == '>'){
-
-			// FIXME:
-			fprintf(2, "REDIR_R FLAG SET\n");
-
 			redirection_right = 1;
 			buf[i] = 0;
 			continue;
 		}
 		if (buf[i] == '|'){
-			
-			// FIXME:
-			fprintf(2, "PIPE_CMD SET TO: %d\n", i+1);
-
 			pipe_cmd = i + 1; // 1 positon offset
 			buf[i] = 0;
 			break; // Handling recursively
 		}
 		if (buf[i] == ';'){
-			// FIXME:
-			fprintf(2, "SEQUENCE_CMD SET TO: %d\n", i+1);
-
 			sequence_cmd = i + 1; // 1 position offset
 			buf[i] = 0;
 			break; // Handling recursively
@@ -124,9 +105,6 @@ void run_command(char* buf, int nbuf, int* pcp){
 					
 					file_name_l = &buf[i]; // capture string
 					file_name_l[strlen(file_name_l) - 1] = 0; // Remove trailing newline
-
-					//FIXME:
-					fprintf(2, "file_name_l: <S>%s<E>\n", file_name_l);
 				}
 			}
 
@@ -135,9 +113,6 @@ void run_command(char* buf, int nbuf, int* pcp){
 					
 					file_name_r = &buf[i];
 					file_name_r[strlen(file_name_r) - 1] = 0; // Remove trailing newline
-
-					// FIXME:
-					fprintf(2, "file_name_r: <S>%s<E>\n", file_name_r);
 				}
 			}
 		}
@@ -154,8 +129,6 @@ void run_command(char* buf, int nbuf, int* pcp){
 			wait(0);
 			
 			fprintf(2, "Sequenced: <S>%s<E>\n", &buf[sequence_cmd]);
-
-			// EXAMPLE: {l, s, [], -a, [], ;, [], c, a, t, [], h, 0}
 
 			// Recursively call run_command to handle everything after ;
 			run_command(&buf[sequence_cmd], nbuf - sequence_cmd, pcp);
@@ -205,12 +178,7 @@ void run_command(char* buf, int nbuf, int* pcp){
 				exec(arguments[0], arguments); // Execute command on the left
 				
 				// If we reach this part that means something went wrong
-				fprintf(2, "================================================\n");
-				fprintf(2, "P_LEFT: Execution of the command failed:<S>%s<E>\n", arguments[0]);
-				fprintf(2, "================================================\n");
-				for (int j = 0; j < 9; j++){
-					fprintf(2, "Arg[%d] = <S>%s<E>, narg = %d\n", j, arguments[j], numargs);
-				}
+				fprintf(2, "Execution of the command failed: %s\n", arguments[0]);
 
 				exit(1);
 			}
@@ -224,18 +192,18 @@ void run_command(char* buf, int nbuf, int* pcp){
 				run_command(&buf[pipe_cmd], nbuf - pipe_cmd, pcp);
 				exit(0);
 			}
+			
+			close(p[0]);
+			close(p[1]);
 			wait(0);
 			wait(0);
+
 		}else{ // No pipes as well, just a plain command
 			exec(arguments[0], arguments);
 
 			// Something went wrong if this part is reached
-			fprintf(2, "===============================================\n");
-			fprintf(2, "DEFAULT:Execution of the command failed:<S>%s<E>\n", arguments[0]);
-			fprintf(2, "===============================================\n");
-			for(int j = 0; j < 9; j++){
-				fprintf(2, "Arg[%d] = <S>%s<E>, narg = %d\n",j , arguments[j], numargs);
-			}	
+			fprintf(2, "Execution of the command failed: %s\n", arguments[0]);
+			exit(1);	
 		}
 	}
 	exit(0);
@@ -268,7 +236,6 @@ int main(void){
 	while(getcmd(buf, sizeof(buf)) >= 0){
 		
 		if (fork() == 0){
-			fprintf(2, "main_child: <S>%s<S>", buf);
 			run_command(buf, 100, pcp);
 		}
 		
@@ -277,13 +244,16 @@ int main(void){
 		wait(&child_status);
 
 		if (child_status == 2){ // CD command is detected, must execute in parent
+
 			char buffer_cd_arg[100];
+			memset(buffer_cd_arg, 0, sizeof(buffer_cd_arg));
+
 			// Read from pipe the pathname to cd
 			read(pcp[0], buffer_cd_arg, sizeof(buffer_cd_arg));
 			
 			// Attempt to use chdir system call
 			if (chdir(buffer_cd_arg) < 0){
-				fprintf(2, "Failed to change directory\n");
+				fprintf(2, "Failed to change directory to : %s\n", buffer_cd_arg);
 			}	
 		}
 	}
